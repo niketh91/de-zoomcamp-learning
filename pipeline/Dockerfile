@@ -25,10 +25,10 @@ RUN uv sync --locked
 # <source> → the file/folder on your local machine
 # <destination> → where it should go inside the container
 # . = current working directory inside the container, which is whatever you set with WORKDIR
-COPY pipeline.py .
+COPY ingest_data.py .
 
 # define what to do first when the container runs
 # in this example, we will just run the script
 # python → program to run
-# pipeline.py → argument to Python (your script)
-ENTRYPOINT ["python", "pipeline.py"]
+# ingest_data.py → argument to Python (your script)
+ENTRYPOINT ["python", "ingest_data.py"]
