@@ -17,6 +17,8 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: "admin@admin.com"
       PGADMIN_DEFAULT_PASSWORD: "root"
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
+      PGADMIN_CONFIG_WTF_CSRF_CHECK_DEFAULT: "False"
     volumes:
       - "pgadmin_data:/var/lib/pgadmin" #Store pgAdmin data in a safe place called pgadmin_data so it survives restarts
     ports:
@@ -46,9 +48,14 @@ services:
     user: "root"
     # Run the container as the root user
     # Needed for file permissions and Docker socket access
+    
     command: server standalone 
     #Tells Kestra to run in standalone server mode - runs everything in one process
     # "server standalone" runs UI, API, scheduler, and worker in one process
+    
+    env_file:
+    - .env  # Add this line to load the .env file
+    
     volumes:
     # Persistent storage for Kestra files (flows, logs, artifacts)
     # This maps a Docker volume to /app/storage inside the container
@@ -62,6 +69,9 @@ services:
     # Used during task execution
     - /tmp/kestra-wd:/tmp/kestra-wd
     environment:
+      # Add the GCP service account as a regular environment variable
+      GOOGLE_APPLICATION_CREDENTIALS_JSON: ${SECRET_GCP_SERVICE_ACCOUNT}
+      
       KESTRA_CONFIGURATION: |
         datasources:
           postgres:
@@ -89,6 +99,7 @@ services:
           url: http://localhost:8080/
         # Base URL that Kestra uses to advertise itself
         # In Codespaces, this is forwarded to a public URL
+    
     ports:
       - "8080:8080"
       - "8081:8081"
