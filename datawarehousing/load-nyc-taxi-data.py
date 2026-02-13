@@ -15,14 +15,10 @@ client = storage.Client.from_service_account_json(CREDENTIALS_FILE)
 # If commented initialize client with the following
 # client = storage.Client(project='zoomcamp-mod3-datawarehouse')
 
-#Modifying URLs to download yellow and green taxi data for whole of 2019 and 2020
-BASE_URLS = [
-    "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2019-",
-    "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2020-",
-    "https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_2019-",
-    "https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_2020-",
-]
-MONTHS = [f"{i:02d}" for i in range(1, 13)]
+TAXI_TYPES = ["yellow", "green"]
+YEARS = [2019, 2020]
+MONTHS = range(1, 13)
+
 DOWNLOAD_DIR = "."
 CHUNK_SIZE = 8 * 1024 * 1024
 
@@ -30,22 +26,23 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 bucket = client.bucket(BUCKET_NAME)
 
-def download_file(month):
-    downloaded_files = []
-    for base_url in BASE_URLS:
-        url = f"{base_url}{month}.parquet"
-        filename = f"{base_url.split('/')[-1]}{month}.parquet"
-        file_path = os.path.join(DOWNLOAD_DIR, filename)
+def download_file(params):
+    taxi_type, year, month = params
 
-        try:
-            print(f"Downloading {url}...")
-            urllib.request.urlretrieve(url, file_path)
-            print(f"Downloaded: {file_path}")
-            downloaded_files.append(file_path)
-        except Exception as e:
-            print(f"Failed to download {url}: {e}")
+    prefix = f"https://github.com/DataTalksClub/nyc-tlc-data/releases/download/{taxi_type}/"
+    filename = f"{taxi_type}_tripdata_{year}-{month:02d}.csv.gz"
+    url = f"{prefix}{filename}"
 
-    return downloaded_files
+    file_path = os.path.join(DOWNLOAD_DIR, filename)
+
+    try:
+        print(f"Downloading {url}...")
+        urllib.request.urlretrieve(url, file_path)
+        print(f"Downloaded: {file_path}")
+        return file_path
+    except Exception as e:
+        print(f"Failed to download {url}: {e}")
+        return None
 
 def create_bucket(bucket_name):
     try:
@@ -109,16 +106,21 @@ def upload_to_gcs(file_path, max_retries=3):
 if __name__ == "__main__":
     create_bucket(BUCKET_NAME)
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        monthly_file_lists = list(executor.map(download_file, MONTHS))
-
-    file_paths = [
-            file_path
-            for monthly_files in monthly_file_lists if monthly_files
-            for file_path in monthly_files
+    download_params = [
+        (taxi_type, year, month)
+        for taxi_type in TAXI_TYPES
+        for year in YEARS
+        for month in MONTHS
     ]
 
+    # Download
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        file_paths = list(executor.map(download_file, download_params))
+
+    file_paths = list(filter(None, file_paths))
+
+    # Upload
     with ThreadPoolExecutor(max_workers=4) as executor:
-        executor.map(upload_to_gcs, filter(None, file_paths))  # Remove None values
+        executor.map(upload_to_gcs, file_paths)
 
     print("All files processed and verified.")
